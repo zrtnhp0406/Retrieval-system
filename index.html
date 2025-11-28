@@ -1,0 +1,643 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>EVA02 Retrieval Web (TRAKE)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body {
+      background: #f7f9fc;
+      color: #222;
+      font-family: system-ui, -apple-system, Roboto, "Segoe UI", Arial;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 16px 0;
+      font-size: 24px;
+      color: #2563eb;
+    }
+
+    .card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    input,
+    textarea,
+    button {
+      font-size: 15px;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      background: #fff;
+      color: #222;
+      margin-top: 8px;
+      box-sizing: border-box;
+    }
+
+    button {
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: none;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+      margin-top: 8px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #1e4ecf;
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .col {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .results img {
+      max-width: 240px;
+      display: block;
+      margin-top: 8px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .small {
+      font-size: 13px;
+      color: #555;
+    }
+
+    .btn-light {
+      background: #e5e7eb;
+      color: #111;
+    }
+
+    .btn-light:hover {
+      background: #d1d5db;
+    }
+
+    .frames-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .frames-grid img {
+      width: 150px;
+      height: auto;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+
+    .card h2 {
+      font-size: 18px;
+      margin: 0 0 12px 0;
+      color: #111;
+    }
+
+    /* Hàng ảnh cuộn ngang */
+    .thumb-row {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 6px 0;
+    }
+
+    .thumb-item {
+      flex: 0 0 auto;
+      /* đừng co giãn */
+      width: 240px;
+      /* mỗi ô ~240px */
+    }
+
+    .thumb-item img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      color: #333;
+      background: #f3f4f6;
+      padding: 8px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>EVA02 Retrieval Web (TRAKE)</h1>
+
+    <div class="card">
+      <h2>Stats</h2>
+      <div class="small" id="statsBox">{{ stats }}</div>
+    </div>
+
+    <div class="card" id="text-search-card">
+      <h2>Text Search</h2>
+      <div class="row">
+        <div class="col">
+          <input id="queryInput" placeholder="Enter text query...">
+        </div>
+        <div style="width:140px">
+          <input id="topkInput" placeholder="Top-K (100)">
+        </div>
+      </div>
+      <!-- New inputs for object filter -->
+      <div class="row" style="margin-top:12px">
+        <div class="col">
+          <input id="objectInput" placeholder="List objects (comma separated)">
+        </div>
+        <div style="width:140px">
+          <input id="thresholdInput" placeholder="Threshold (+/- for keep/remove, default 0.5)">
+        </div>
+        <div style="width:140px">
+          <button onclick="searchText()">Search</button>
+        </div>
+      </div>
+      <!-- Add this inside the text-search-card div, after the first row div -->
+      <div class="row" style="margin-top:12px">
+        <div class="col">
+          <input type="file" id="textSearchImage" accept="image/*" placeholder="Optional: Upload image to rerank">
+        </div>
+        <div class="small" style="margin-top:4px">Optional: Upload image to rerank results</div>
+      </div>
+      <div id="textResults" class="results"></div>
+
+      <div style="margin-top:16px">
+        <input id="exportName" placeholder="CSV name (no .csv)">
+        <input id="exportConst" placeholder="Optional const value (int)">
+        <button class="btn-light" onclick="exportResults()">Export Last Results</button>
+        <div id="exportMsg" class="small" style="margin-top:8px"></div>
+      </div>
+
+      <div style="margin-top:16px">
+        <div class="row">
+          <div style="width:180px">
+            <select id="groupSortBy">
+              <option value="frame">Sort by frame</option>
+              <option value="similarity">Sort by similarity</option>
+            </select>
+          </div>
+          <div style="width:200px">
+            <input id="groupTopPerVideo" placeholder="Top per video (e.g. 20)">
+          </div>
+          <div style="width:160px">
+            <button class="btn-light" onclick="groupByVideoText()">Group by video</button>
+          </div>
+        </div>
+        <div id="groupedResults" class="results" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Image Search (Upload)</h2>
+      <div class="row">
+        <div class="col">
+          <input type="file" id="uploadFile" accept="image/*">
+        </div>
+        <div style="width:140px">
+          <input id="imgTopk" placeholder="Top-K (100)">
+        </div>
+        <div style="width:160px">
+          <button onclick="uploadAndSearch()">Upload & Search</button>
+        </div>
+      </div>
+      <div id="imageResults" class="results"></div>
+
+      <div style="margin-top:16px">
+        <div class="row">
+          <div style="width:180px">
+            <select id="groupSortByImg">
+              <option value="frame">Sort by frame</option>
+              <option value="similarity">Sort by similarity</option>
+            </select>
+          </div>
+          <div style="width:200px">
+            <input id="groupTopPerVideoImg" placeholder="Top per video (e.g. 20)">
+          </div>
+          <div style="width:160px">
+            <button class="btn-light" onclick="groupByVideoImage()">Group by video</button>
+          </div>
+        </div>
+        <div id="groupedImageResults" class="results" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>TRAKE (Temporal Retrieval)</h2>
+      <textarea id="eventsBox" rows="5" placeholder="E1: ...&#10;E2: ..."></textarea>
+      <div class="row">
+        <div class="col">
+          <input id="trakeTopk" placeholder="Top-K per event (200)">
+        </div>
+        <div class="col">
+          <input id="trakeCandidates" placeholder="Candidates (e.g. 200)">
+        </div>
+        <div class="col">
+          <select id="trakeOption">
+            <option value="Closest">Closest</option>
+            <option value="Highest">Highest</option>
+            <option value="All">All</option>
+          </select>
+        </div>
+        <div style="width:160px">
+          <button onclick="runTrake()">Run TRAKE</button>
+        </div>
+      </div>
+
+      <!-- Nút export riêng cho TRAKE -->
+      <div style="margin-top:12px">
+        <input id="trakeExportName" placeholder="CSV name (no .csv)">
+        <button class="btn-light" onclick="exportTrake()">Export TRAKE Results</button>
+        <div id="trakeExportMsg" class="small" style="margin-top:8px"></div>
+      </div>
+
+      <div id="trakeResults" class="results"></div>
+    </div>
+
+    <div class="card">
+      <h2>Video Frames Viewer</h2>
+      <div class="row">
+        <div class="col">
+          <input id="videoNameInput" placeholder="Enter video folder name (e.g. video_0001)">
+        </div>
+        <div style="width:160px">
+          <button onclick="showFrames()">Show Frames</button>
+        </div>
+      </div>
+      <div id="framesView" class="frames-grid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Video Frames Range Viewer</h2>
+      <div class="row">
+        <div class="col">
+          <input id="videoNameRangeInput" placeholder="Enter video folder name (e.g. video_0001)">
+        </div>
+        <div class="col">
+          <input id="frameIdInput" placeholder="Frame ID (e.g. 100)">
+        </div>
+        <div class="col">
+          <input id="rangeInput" placeholder="Range (x frames, e.g. 5)">
+        </div>
+        <div style="width:200px">
+          <button onclick="showFramesRange()">Show Frames Range</button>
+        </div>
+      </div>
+      <div id="framesRangeView" class="frames-grid"></div>
+    </div>
+    <div class="card">
+      <h2>Make Submission</h2>
+      <div class="row">
+        <div class="col">
+          <input id="subExportName" placeholder="CSV name (no .csv)">
+        </div>
+        <div class="col">
+          <input id="subVideoName" placeholder="Video name (e.g. video_0001)">
+        </div>
+        <div class="col">
+          <input id="subFrameId" placeholder="Frame ID (e.g. 100)">
+        </div>
+        <div class="col">
+          <input id="subGap" placeholder="GAP_KEYFRAME (e.g. 5)">
+        </div>
+        <div class="col">
+          <input id="subConst" placeholder="Optional const value">
+        </div>
+        <div style="width:200px">
+          <button onclick="makeSubmission()">Export Submission</button>
+        </div>
+      </div>
+      <div id="subMsg" class="small" style="margin-top:8px"></div>
+    </div>
+  </div>
+  </div>
+
+  <script>
+    window.lastResults = [];
+    function imgTagForPath(path, alt = "") {
+      const url = "/image?path=" + encodeURIComponent(path);
+      return `<img src="${url}" alt="${alt}">`;
+    }
+    async function searchText() {
+      const q = document.getElementById("queryInput").value.trim();
+      if (!q) { alert("Please enter a query"); return; }
+
+      const topk = document.getElementById("topkInput").value || 100;
+      const obj = document.getElementById("objectInput").value.trim();
+      const threshold = parseFloat(document.getElementById("thresholdInput").value) || 0.5;
+
+      // Handle image upload if present
+      const imageInput = document.getElementById("textSearchImage");
+      let formData = null;
+
+      if (imageInput.files && imageInput.files[0]) {
+        formData = new FormData();
+        formData.append("file", imageInput.files[0]);
+        formData.append("query", q);
+        formData.append("top_k", topk);
+        formData.append("objects", obj);
+        formData.append("threshold", threshold);
+      }
+
+      document.getElementById("textResults").innerHTML = "<div class='small'>Searching...</div>";
+
+      let res;
+      if (formData) {
+        // If image is present, use multipart form data
+        res = await fetch("/api/search_text_with_image", {
+          method: "POST",
+          body: formData
+        });
+      } else {
+        // Original text-only search
+        res = await fetch("/api/search_text", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: q,
+            top_k: parseInt(topk),
+            objects: obj,
+            threshold: threshold
+          })
+        });
+      }
+
+      const data = await res.json();
+      window.lastResults = data.results || [];
+      let html = `<div class="small">Time: ${data.elapsed?.toFixed(2)}s | Results: ${window.lastResults.length}</div>`;
+      for (const r of window.lastResults) {
+        html += `<div style="margin-top:12px">
+                <b>${r.video_name}</b> | Frame ${r.frame_idx} | Time ${r.time_str || "?"} | Frame_video ${r.frame_idx_video} | Score ${r.similarity?.toFixed(3)} | <a href="${r.watch_url}" target="_blank">${r.watch_url}</a><br>
+                ${imgTagForPath(r.image_path)}
+              </div>`;
+      }
+      document.getElementById("textResults").innerHTML = html;
+    }
+    async function uploadAndSearch() {
+      const input = document.getElementById("uploadFile");
+      if (!input.files.length) { alert("Choose a file first"); return; }
+      const fd = new FormData();
+      fd.append("file", input.files[0]);
+      fd.append("top_k", document.getElementById("imgTopk").value || 100);
+      document.getElementById("imageResults").innerHTML = "<div class='small'>Uploading...</div>";
+      const res = await fetch("/api/upload_image", { method: "POST", body: fd });
+      const data = await res.json();
+      window.lastResults = data.results || [];
+      let html = `<div class="small">Time: ${data.elapsed?.toFixed(2)}s | Results: ${window.lastResults.length}</div>`;
+      for (const r of window.lastResults) {
+        html += `<div style="margin-top:12px"><b>${r.video_name}</b> | Frame ${r.frame_idx} | Score ${r.similarity?.toFixed(3)} | <a href="${r.watch_url}" target="_blank">${r.watch_url}</a> <br>${imgTagForPath(r.image_path)}</br> </div>`;
+      }
+      document.getElementById("imageResults").innerHTML = html;
+    }
+
+
+    async function runTrake() {
+      const events = document.getElementById("eventsBox").value.trim().split("\n").filter(x => x);
+      if (!events.length) { alert("Enter events"); return; }
+      const topk = document.getElementById("trakeTopk").value || 200;
+      const candidates = document.getElementById("trakeCandidates").value || 200;
+      const option = document.getElementById("trakeOption").value;
+      const len_of_events = events.length;
+      document.getElementById("trakeResults").innerHTML = "<div class='small'>Running...</div>";
+      const res = await fetch("/api/trake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          events: events,
+          top_k: parseInt(topk),
+          candidates: parseInt(candidates),
+          option: option
+        })
+      });
+      const data = await res.json();
+      if (!data.result || data.result.length === 0) {
+        document.getElementById("trakeResults").innerHTML = "<div class='small'>No sequence found.</div>";
+        return;
+      }
+      let html = "";
+      for (const candidate of data.result) {
+        html += `<div class="small">Video: ${candidate.video_name} | Time: ${data.elapsed?.toFixed(2)}s | <a href="${candidate.watch_url}" target="_blank">${candidate.watch_url}</a></div>`;
+        for (const d of candidate.details) {
+          html += `<div style="margin-top:12px">
+                   <b>Event:</b> ${d.event} | Frame ${d.frame} | Score ${d.sim?.toFixed(3)}<br>
+                   ${imgTagForPath(d.path)}
+                 </div>`;
+        }
+        html += `<hr>`;
+      }
+      document.getElementById("trakeResults").innerHTML = html;
+      window.lastResults = [];
+      for (const candidate of data.result) {
+        window.lastResults.push(...candidate.details.map(d => ({
+          image_path: d.path,
+          video_name: candidate.video_name,
+          frame_idx: d.frame,
+          similarity: d.sim,
+          watch_url: d.watch_url,
+          event: len_of_events
+        })));
+      }
+    }
+
+    async function exportTrake() {
+      const results = window.lastResults || [];
+      if (!results.length) {
+        alert("No TRAKE results to export");
+        return;
+      }
+
+      const name = document.getElementById("trakeExportName").value || `trake_${Date.now()}`;
+
+      try {
+        const res = await fetch("/api/export_trake_results", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ results: results, name: name })
+        });
+        const data = await res.json();
+
+        if (data.status === "ok") {
+          document.getElementById("trakeExportMsg").innerText = `Exported: ${data.csv_path}`;
+        } else {
+          document.getElementById("trakeExportMsg").innerText = `Export failed: ${data.msg}`;
+        }
+      } catch (err) {
+        document.getElementById("trakeExportMsg").innerText = "Error: " + err.message;
+      }
+    }
+
+    async function exportResults() {
+      if (!window.lastResults.length) { alert("No results"); return; }
+      const name = document.getElementById("exportName").value || `exported_${Date.now()}`;
+      const constVal = document.getElementById("exportConst").value;
+      const res = await fetch("/api/export_results", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ results: window.lastResults, name: name, const_value: constVal })
+      });
+      const data = await res.json();
+      document.getElementById("exportMsg").innerText = data.status === "ok" ? `Exported: ${data.csv_path}` : "Error";
+    }
+
+
+
+    async function showFrames() {
+      const vid = document.getElementById("videoNameInput").value.trim();
+      if (!vid) { alert("Enter video"); return; }
+      const res = await fetch("/api/get_frames/" + encodeURIComponent(vid));
+      const data = await res.json();
+      let html = "";
+      for (const f of data) {
+        html += imgTagForPath(f.image_path);
+      }
+      document.getElementById("framesView").innerHTML = html;
+    }
+    async function showFramesRange() {
+      const vid = document.getElementById("videoNameRangeInput").value.trim();
+      const frameId = document.getElementById("frameIdInput").value.trim();
+      const range = document.getElementById("rangeInput").value.trim();
+      if (!vid) { alert("Enter video"); return; }
+      if (!frameId || isNaN(frameId)) { alert("Enter a valid Frame ID"); return; }
+      if (!range || isNaN(range)) { alert("Enter a valid Range"); return; }
+      const res = await fetch("/api/get_frames_range/" + encodeURIComponent(vid) + "/" + frameId + "/" + range);
+      const data = await res.json();
+      let html = "";
+      for (const f of data) {
+        html += imgTagForPath(f.image_path);
+      }
+      document.getElementById("framesRangeView").innerHTML = html;
+    }
+    async function groupByVideoGeneric(targetId, sortId, topId) {
+      const results = window.lastResults || [];
+      if (!results.length) { alert("No results to group. Run a search first."); return; }
+
+      const sort_by = document.getElementById(sortId).value || "frame";
+      const topInput = document.getElementById(topId).value.trim();
+      const top_per_video = topInput ? parseInt(topInput) : null;
+
+      const target = document.getElementById(targetId);
+      target.innerHTML = "<div class='small'>Grouping...</div>";
+
+      const res = await fetch("/api/group_by_video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ results, sort_by, top_per_video })
+      });
+      const data = await res.json();
+
+      let html = "";
+      const entries = Object.entries(data);
+      if (!entries.length) {
+        target.innerHTML = "<div class='small'>No grouped items.</div>";
+        return;
+      }
+
+      for (const [vid, items] of entries) {
+        html += `<details open>
+        <summary><b>${vid}</b> <span class="small">(${items.length} items)</span></summary>
+        <div class="thumb-row">`;
+        for (const r of items) {
+          const fvid = (r.frame_idx_video ?? r.frame_idx ?? "?");
+          const tstr = r.time_str || "?";
+          const sim = (typeof r.similarity === "number") ? r.similarity.toFixed(3) : "–";
+          html += `<div class="thumb-item">
+          <div class="small">Frame ${fvid} • ${tstr} • ${sim}</div>
+          ${imgTagForPath(r.image_path)}
+        </div>`;
+        }
+        html += `</div></details><hr>`;
+      }
+
+      target.innerHTML = html;
+    }
+
+    function groupByVideoText() {
+      return groupByVideoGeneric("groupedResults", "groupSortBy", "groupTopPerVideo");
+    }
+    function groupByVideoImage() {
+      return groupByVideoGeneric("groupedImageResults", "groupSortByImg", "groupTopPerVideoImg");
+    }
+
+    async function makeSubmission() {
+      const name = document.getElementById("subExportName").value.trim() || `submission_${Date.now()}`;
+      const videoName = document.getElementById("subVideoName").value.trim();
+      const frameIdStr = document.getElementById("subFrameId").value.trim();
+      const gapStr = document.getElementById("subGap").value.trim();
+      const constValStr = document.getElementById("subConst").value.trim();
+
+      if (!videoName || !frameIdStr || !gapStr) {
+        alert("Please enter video_name, frame_id and GAP_KEYFRAME");
+        return;
+      }
+
+      const frameId = parseInt(frameIdStr);
+      const GAP_KEYFRAME = parseInt(gapStr);
+      const constVal = constValStr !== "" ? constValStr : null;   
+
+      if (isNaN(frameId) || frameId < 0) {
+        alert("Invalid frame_id");
+        return;
+      }
+      if (isNaN(GAP_KEYFRAME) || GAP_KEYFRAME <= 0) {
+        alert("Invalid GAP_KEYFRAME");
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/export_submission", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            video_name: videoName,
+            frame_id: frameId,
+            gap: GAP_KEYFRAME,
+            const_value: constVal,
+            name: name
+          })
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          document.getElementById("subMsg").innerText = `Exported: ${data.csv_path}`;
+        } else {
+          document.getElementById("subMsg").innerText = `Export failed: ${data.msg}`;
+        }
+      } catch (err) {
+        document.getElementById("subMsg").innerText = "Error: " + err.message;
+      }
+    }
+  </script>
+</body>
+
+</html>
